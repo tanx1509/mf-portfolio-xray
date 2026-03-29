@@ -1,0 +1,684 @@
+import { useState, useEffect, useRef, useCallback } from "react";
+
+// ─── CONSTANTS & DATA ────────────────────────────────────────────────
+const FUND_DATABASE = {
+  "Axis Bluechip Fund": { category: "Large Cap", expense: 0.49, benchmark: "Nifty 50", risk: "Moderate", topHoldings: ["HDFC Bank", "ICICI Bank", "Infosys", "Reliance", "TCS", "L&T", "Bharti Airtel", "SBI", "Kotak Bank", "HUL"], returns1y: 14.2, returns3y: 12.8, returns5y: 13.5 },
+  "Mirae Asset Large Cap": { category: "Large Cap", expense: 0.53, benchmark: "Nifty 100", risk: "Moderate", topHoldings: ["HDFC Bank", "Reliance", "ICICI Bank", "Infosys", "TCS", "Bharti Airtel", "L&T", "SBI", "Axis Bank", "HUL"], returns1y: 15.1, returns3y: 13.2, returns5y: 14.1 },
+  "Parag Parikh Flexi Cap": { category: "Flexi Cap", expense: 0.63, benchmark: "Nifty 500", risk: "Moderate", topHoldings: ["HDFC Bank", "Bajaj Holdings", "ITC", "Coal India", "Alphabet", "Microsoft", "Amazon", "Meta", "Power Grid", "ICICI Bank"], returns1y: 18.3, returns3y: 15.6, returns5y: 16.2 },
+  "SBI Small Cap Fund": { category: "Small Cap", expense: 0.68, benchmark: "Nifty Smallcap 250", risk: "Very High", topHoldings: ["Blue Star", "Chalet Hotels", "Finolex Cables", "IIFL Finance", "Kalpataru Projects", "Karur Vysya", "Lemon Tree", "RITES", "Sheela Foam", "Triveni Turbine"], returns1y: 22.4, returns3y: 19.1, returns5y: 20.3 },
+  "HDFC Mid-Cap Opportunities": { category: "Mid Cap", expense: 0.72, benchmark: "Nifty Midcap 150", risk: "High", topHoldings: ["Indian Hotels", "Max Healthcare", "Persistent Systems", "Coforge", "Oberoi Realty", "AU Small Finance", "Sundaram Finance", "Trent", "Balkrishna Ind", "The Phoenix Mills"], returns1y: 19.7, returns3y: 16.4, returns5y: 17.8 },
+  "Kotak Emerging Equity": { category: "Mid Cap", expense: 0.46, benchmark: "Nifty Midcap 150", risk: "High", topHoldings: ["Persistent Systems", "Supreme Industries", "Sundaram Finance", "Schaeffler", "Coforge", "CG Power", "Max Healthcare", "Oberoi Realty", "Sona BLW", "AU Small Finance"], returns1y: 20.1, returns3y: 17.2, returns5y: 18.4 },
+  "ICICI Pru Value Discovery": { category: "Value", expense: 1.02, benchmark: "Nifty 500", risk: "High", topHoldings: ["NTPC", "Oil India", "Sun Pharma", "ICICI Bank", "Infosys", "HDFC Bank", "GE Shipping", "Coal India", "REC", "NHPC"], returns1y: 16.8, returns3y: 14.9, returns5y: 15.6 },
+  "Nippon India Growth Fund": { category: "Mid Cap", expense: 0.85, benchmark: "Nifty Midcap 150", risk: "High", topHoldings: ["Persistent Systems", "Max Healthcare", "Indian Hotels", "Tube Investments", "Kaynes Technology", "Trent", "PI Industries", "Coforge", "Astral", "Voltas"], returns1y: 21.3, returns3y: 18.1, returns5y: 19.2 },
+  "Motilal Oswal Midcap Fund": { category: "Mid Cap", expense: 0.58, benchmark: "Nifty Midcap 150", risk: "High", topHoldings: ["Persistent Systems", "Kalyan Jewellers", "Polycab", "Coforge", "Jio Financial", "Dixon Tech", "Max Healthcare", "Trent", "KEI Industries", "BSE Ltd"], returns1y: 23.6, returns3y: 19.8, returns5y: 21.1 },
+  "Quant Small Cap Fund": { category: "Small Cap", expense: 0.64, benchmark: "Nifty Smallcap 250", risk: "Very High", topHoldings: ["Reliance", "Bikaji Foods", "PCBL", "JIO Financial", "Mangalore Refinery", "Motilal Oswal", "RVNL", "IRB Infra", "Engineers India", "Ester Industries"], returns1y: 25.1, returns3y: 21.3, returns5y: 22.8 },
+};
+
+const SAMPLE_PORTFOLIOS = {
+  conservative: [
+    { fund: "Axis Bluechip Fund", invested: 500000, current: 612000, sip: 10000, startDate: "2022-01-15", units: 2450 },
+    { fund: "Mirae Asset Large Cap", invested: 400000, current: 498000, sip: 8000, startDate: "2021-06-10", units: 1980 },
+    { fund: "ICICI Pru Value Discovery", invested: 300000, current: 389000, sip: 5000, startDate: "2022-03-20", units: 1520 },
+  ],
+  aggressive: [
+    { fund: "SBI Small Cap Fund", invested: 400000, current: 578000, sip: 10000, startDate: "2021-09-01", units: 3200 },
+    { fund: "HDFC Mid-Cap Opportunities", invested: 350000, current: 468000, sip: 8000, startDate: "2022-02-14", units: 2100 },
+    { fund: "Motilal Oswal Midcap Fund", invested: 300000, current: 425000, sip: 7000, startDate: "2022-07-01", units: 1800 },
+    { fund: "Quant Small Cap Fund", invested: 250000, current: 372000, sip: 5000, startDate: "2023-01-10", units: 2800 },
+    { fund: "Parag Parikh Flexi Cap", invested: 200000, current: 261000, sip: 5000, startDate: "2022-11-15", units: 1100 },
+  ],
+  overlap_heavy: [
+    { fund: "Axis Bluechip Fund", invested: 300000, current: 368000, sip: 8000, startDate: "2022-04-01", units: 1500 },
+    { fund: "Mirae Asset Large Cap", invested: 300000, current: 372000, sip: 8000, startDate: "2022-04-01", units: 1480 },
+    { fund: "Kotak Emerging Equity", invested: 250000, current: 338000, sip: 6000, startDate: "2022-06-15", units: 1200 },
+    { fund: "HDFC Mid-Cap Opportunities", invested: 250000, current: 331000, sip: 6000, startDate: "2022-06-15", units: 1190 },
+    { fund: "Nippon India Growth Fund", invested: 200000, current: 274000, sip: 5000, startDate: "2023-01-01", units: 950 },
+    { fund: "SBI Small Cap Fund", invested: 200000, current: 289000, sip: 5000, startDate: "2023-01-01", units: 1600 },
+  ],
+};
+
+// ─── UTILITY FUNCTIONS ───────────────────────────────────────────────
+const fmt = (n) => new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(n);
+const fmtPct = (n) => `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`;
+const fmtLakh = (n) => {
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)} Cr`;
+  if (n >= 100000) return `₹${(n / 100000).toFixed(2)} L`;
+  return `₹${fmt(n)}`;
+};
+
+function computeXIRR(invested, current, startDate) {
+  const start = new Date(startDate);
+  const now = new Date();
+  const years = (now - start) / (365.25 * 24 * 3600 * 1000);
+  if (years <= 0) return 0;
+  return ((current / invested) ** (1 / years) - 1) * 100;
+}
+
+function computeOverlap(holdings1, holdings2) {
+  const set1 = new Set(holdings1);
+  const common = holdings2.filter((h) => set1.has(h));
+  return { count: common.length, stocks: common, pct: (common.length / Math.max(holdings1.length, holdings2.length)) * 100 };
+}
+
+// ─── ANALYSIS ENGINE (Multi-Agent Pipeline) ──────────────────────────
+function runAnalysis(portfolio) {
+  const totalInvested = portfolio.reduce((s, f) => s + f.invested, 0);
+  const totalCurrent = portfolio.reduce((s, f) => s + f.current, 0);
+  const totalGain = totalCurrent - totalInvested;
+  const gainPct = (totalGain / totalInvested) * 100;
+
+  // Per-fund analysis
+  const fundAnalysis = portfolio.map((f) => {
+    const info = FUND_DATABASE[f.fund];
+    const gain = f.current - f.invested;
+    const gainP = (gain / f.invested) * 100;
+    const xirr = computeXIRR(f.invested, f.current, f.startDate);
+    const expenseDrag = f.current * (info.expense / 100);
+    const allocation = (f.current / totalCurrent) * 100;
+    return { ...f, ...info, gain, gainPct: gainP, xirr, expenseDrag, allocation };
+  });
+
+  // Category allocation
+  const categories = {};
+  fundAnalysis.forEach((f) => {
+    categories[f.category] = (categories[f.category] || 0) + f.allocation;
+  });
+
+  // Overlap matrix
+  const overlapMatrix = [];
+  for (let i = 0; i < fundAnalysis.length; i++) {
+    for (let j = i + 1; j < fundAnalysis.length; j++) {
+      const overlap = computeOverlap(fundAnalysis[i].topHoldings, fundAnalysis[j].topHoldings);
+      if (overlap.count > 0) {
+        overlapMatrix.push({ fund1: fundAnalysis[i].fund, fund2: fundAnalysis[j].fund, ...overlap });
+      }
+    }
+  }
+
+  // Total expense drag
+  const totalExpenseDrag = fundAnalysis.reduce((s, f) => s + f.expenseDrag, 0);
+  const weightedExpense = fundAnalysis.reduce((s, f) => s + f.expense * f.allocation, 0) / 100;
+
+  // Health score (0-100)
+  let score = 70;
+  const diversificationPenalty = Object.keys(categories).length < 3 ? -10 : 0;
+  const overlapPenalty = overlapMatrix.filter((o) => o.pct > 40).length * -5;
+  const expensePenalty = weightedExpense > 0.8 ? -8 : weightedExpense > 0.6 ? -4 : 0;
+  const returnBonus = gainPct > 20 ? 10 : gainPct > 10 ? 5 : 0;
+  const smallCapConc = (categories["Small Cap"] || 0) > 40 ? -8 : 0;
+  score = Math.max(15, Math.min(98, score + diversificationPenalty + overlapPenalty + expensePenalty + returnBonus + smallCapConc));
+
+  // AI Recommendations
+  const recommendations = [];
+  if (overlapMatrix.some((o) => o.pct > 40)) {
+    const worst = overlapMatrix.sort((a, b) => b.pct - a.pct)[0];
+    recommendations.push({ type: "warning", title: "High Portfolio Overlap Detected", desc: `${worst.fund1} and ${worst.fund2} share ${worst.count} of top-10 holdings (${worst.pct.toFixed(0)}% overlap). Consider consolidating into one fund to reduce redundancy and save on expense ratios.`, impact: `Save ~₹${fmt(Math.min(fundAnalysis.find(f => f.fund === worst.fund1)?.expenseDrag || 0, fundAnalysis.find(f => f.fund === worst.fund2)?.expenseDrag || 0))}/yr in expense drag.` });
+  }
+  if (weightedExpense > 0.7) {
+    recommendations.push({ type: "warning", title: "Expense Ratio Drag", desc: `Your weighted average expense ratio is ${weightedExpense.toFixed(2)}%. This costs you ₹${fmt(totalExpenseDrag)}/yr. Consider switching high-cost funds to direct plans or index alternatives.`, impact: `Potential savings: ₹${fmt(totalExpenseDrag * 0.4)}/yr` });
+  }
+  if (!categories["Large Cap"] || categories["Large Cap"] < 20) {
+    recommendations.push({ type: "info", title: "Add Large Cap Stability", desc: "Your portfolio lacks adequate large-cap exposure. Consider adding a Nifty 50 index fund for stability during market corrections.", impact: "Reduce portfolio volatility by ~15-20%" });
+  }
+  if ((categories["Small Cap"] || 0) > 35) {
+    recommendations.push({ type: "warning", title: "Small Cap Concentration Risk", desc: `${(categories["Small Cap"]).toFixed(1)}% in small caps is aggressive. Small caps can fall 40-60% in bear markets. Consider rebalancing to max 25%.`, impact: "Reduce max drawdown risk significantly" });
+  }
+  if (Object.keys(categories).length >= 3 && !overlapMatrix.some(o => o.pct > 40)) {
+    recommendations.push({ type: "success", title: "Well Diversified", desc: "Your portfolio spans multiple market cap categories with reasonable overlap levels. Good job!", impact: "Lower correlation = smoother returns" });
+  }
+  if (gainPct > 15) {
+    recommendations.push({ type: "success", title: "Strong Returns", desc: `Your portfolio has generated ${gainPct.toFixed(1)}% absolute returns. The power of staying invested is working for you.`, impact: `Total wealth created: ₹${fmt(totalGain)}` });
+  }
+  recommendations.push({ type: "info", title: "Tax Harvesting Opportunity", desc: "Review funds held >1 year with gains >₹1.25L for LTCG tax planning. Book partial profits before March 31 to utilize the ₹1.25L exemption.", impact: "Save up to ₹12,500 in LTCG tax" });
+
+  return { totalInvested, totalCurrent, totalGain, gainPct, fundAnalysis, categories, overlapMatrix, totalExpenseDrag, weightedExpense, score, recommendations };
+}
+
+// ─── ANIMATED NUMBER ──────────────────────────────────────────────────
+function AnimNum({ value, prefix = "", suffix = "", duration = 1200 }) {
+  const [display, setDisplay] = useState(0);
+  const ref = useRef();
+  useEffect(() => {
+    const start = performance.now();
+    const from = 0;
+    const to = value;
+    const tick = (now) => {
+      const p = Math.min((now - start) / duration, 1);
+      const ease = 1 - Math.pow(1 - p, 3);
+      setDisplay(from + (to - from) * ease);
+      if (p < 1) ref.current = requestAnimationFrame(tick);
+    };
+    ref.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(ref.current);
+  }, [value, duration]);
+  return <span>{prefix}{typeof value === "number" && value % 1 === 0 ? fmt(Math.round(display)) : display.toFixed(1)}{suffix}</span>;
+}
+
+// ─── DONUT CHART ──────────────────────────────────────────────────────
+function DonutChart({ data, size = 200 }) {
+  const total = data.reduce((s, d) => s + d.value, 0);
+  const colors = ["#10B981", "#3B82F6", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899"];
+  let cumulative = 0;
+  const segments = data.map((d, i) => {
+    const pct = d.value / total;
+    const startAngle = cumulative * 2 * Math.PI - Math.PI / 2;
+    cumulative += pct;
+    const endAngle = cumulative * 2 * Math.PI - Math.PI / 2;
+    const r = size / 2 - 10;
+    const ir = r * 0.6;
+    const x1 = size / 2 + r * Math.cos(startAngle);
+    const y1 = size / 2 + r * Math.sin(startAngle);
+    const x2 = size / 2 + r * Math.cos(endAngle);
+    const y2 = size / 2 + r * Math.sin(endAngle);
+    const ix1 = size / 2 + ir * Math.cos(endAngle);
+    const iy1 = size / 2 + ir * Math.sin(endAngle);
+    const ix2 = size / 2 + ir * Math.cos(startAngle);
+    const iy2 = size / 2 + ir * Math.sin(startAngle);
+    const large = pct > 0.5 ? 1 : 0;
+    const path = `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${ix1} ${iy1} A ${ir} ${ir} 0 ${large} 0 ${ix2} ${iy2} Z`;
+    return { path, color: colors[i % colors.length], label: d.label, pct: pct * 100 };
+  });
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        {segments.map((s, i) => (
+          <path key={i} d={s.path} fill={s.color} opacity={0.85} stroke="#1a1a2e" strokeWidth={2}>
+            <title>{s.label}: {s.pct.toFixed(1)}%</title>
+          </path>
+        ))}
+      </svg>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {segments.map((s, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+            <div style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: s.color, flexShrink: 0 }} />
+            <span style={{ color: "#94a3b8" }}>{s.label}</span>
+            <span style={{ color: "#e2e8f0", fontWeight: 600, marginLeft: "auto" }}>{s.pct.toFixed(1)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── HEALTH GAUGE ─────────────────────────────────────────────────────
+function HealthGauge({ score }) {
+  const [anim, setAnim] = useState(0);
+  useEffect(() => {
+    const t = setTimeout(() => setAnim(score), 300);
+    return () => clearTimeout(t);
+  }, [score]);
+  const angle = -90 + (anim / 100) * 180;
+  const color = score >= 75 ? "#10B981" : score >= 50 ? "#F59E0B" : "#EF4444";
+  const label = score >= 80 ? "Excellent" : score >= 65 ? "Good" : score >= 45 ? "Needs Work" : "Critical";
+  return (
+    <div style={{ textAlign: "center" }}>
+      <svg width={220} height={130} viewBox="0 0 220 130">
+        <defs>
+          <linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#EF4444" />
+            <stop offset="50%" stopColor="#F59E0B" />
+            <stop offset="100%" stopColor="#10B981" />
+          </linearGradient>
+        </defs>
+        <path d="M 20 120 A 90 90 0 0 1 200 120" fill="none" stroke="#1e293b" strokeWidth={16} strokeLinecap="round" />
+        <path d="M 20 120 A 90 90 0 0 1 200 120" fill="none" stroke="url(#gaugeGrad)" strokeWidth={16} strokeLinecap="round" opacity={0.3} />
+        <line x1="110" y1="120" x2={110 + 70 * Math.cos((angle * Math.PI) / 180)} y2={120 + 70 * Math.sin((angle * Math.PI) / 180)} stroke={color} strokeWidth={3} strokeLinecap="round" style={{ transition: "all 1.5s cubic-bezier(0.34, 1.56, 0.64, 1)" }} />
+        <circle cx="110" cy="120" r="6" fill={color} style={{ transition: "fill 1s" }} />
+        <text x="110" y="95" textAnchor="middle" fill={color} fontSize="36" fontWeight="800" fontFamily="'JetBrains Mono', monospace" style={{ transition: "fill 1s" }}>{score}</text>
+        <text x="110" y="112" textAnchor="middle" fill="#64748b" fontSize="12" fontFamily="sans-serif">{label}</text>
+        <text x="25" y="118" textAnchor="middle" fill="#475569" fontSize="10">0</text>
+        <text x="195" y="118" textAnchor="middle" fill="#475569" fontSize="10">100</text>
+      </svg>
+    </div>
+  );
+}
+
+// ─── BAR CHART ────────────────────────────────────────────────────────
+function HBar({ label, value, max, color, suffix = "%", width = "100%" }) {
+  const [w, setW] = useState(0);
+  useEffect(() => { const t = setTimeout(() => setW((Math.abs(value) / max) * 100), 100); return () => clearTimeout(t); }, [value, max]);
+  return (
+    <div style={{ marginBottom: 10, width }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+        <span style={{ color: "#94a3b8", maxWidth: "70%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+        <span style={{ color, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>{value.toFixed(1)}{suffix}</span>
+      </div>
+      <div style={{ height: 8, background: "#1e293b", borderRadius: 4, overflow: "hidden" }}>
+        <div style={{ height: "100%", width: `${w}%`, background: color, borderRadius: 4, transition: "width 1s cubic-bezier(0.34, 1.56, 0.64, 1)" }} />
+      </div>
+    </div>
+  );
+}
+
+// ─── OVERLAP HEATMAP ──────────────────────────────────────────────────
+function OverlapViz({ matrix, funds }) {
+  if (matrix.length === 0) return <p style={{ color: "#64748b", fontSize: 13 }}>No significant overlap detected.</p>;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {matrix.sort((a, b) => b.pct - a.pct).map((o, i) => {
+        const severity = o.pct > 50 ? "#EF4444" : o.pct > 30 ? "#F59E0B" : "#10B981";
+        return (
+          <div key={i} style={{ background: "#0f172a", borderRadius: 10, padding: "12px 16px", border: `1px solid ${severity}22` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <span style={{ fontSize: 12, color: "#94a3b8" }}>{o.fund1.split(" ").slice(0, 3).join(" ")} ↔ {o.fund2.split(" ").slice(0, 3).join(" ")}</span>
+              <span style={{ fontSize: 14, fontWeight: 800, color: severity, fontFamily: "'JetBrains Mono', monospace" }}>{o.pct.toFixed(0)}%</span>
+            </div>
+            <div style={{ height: 6, background: "#1e293b", borderRadius: 3, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${o.pct}%`, background: severity, borderRadius: 3, transition: "width 0.8s ease" }} />
+            </div>
+            <div style={{ fontSize: 11, color: "#475569", marginTop: 6 }}>Common: {o.stocks.join(", ")}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── MAIN APP ─────────────────────────────────────────────────────────
+export default function App() {
+  const [screen, setScreen] = useState("landing"); // landing | upload | analyzing | results
+  const [portfolio, setPortfolio] = useState(null);
+  const [analysis, setAnalysis] = useState(null);
+  const [activeTab, setActiveTab] = useState("overview");
+  const [agentLogs, setAgentLogs] = useState([]);
+  const fileInputRef = useRef();
+  const [dragOver, setDragOver] = useState(false);
+
+  const agents = [
+    { name: "Parser Agent", icon: "📄", task: "Extracting fund data from CAMS/KFintech statement..." },
+    { name: "NAV Agent", icon: "📊", task: "Fetching latest NAV and computing true XIRR..." },
+    { name: "Overlap Agent", icon: "🔍", task: "Running pairwise holding overlap analysis..." },
+    { name: "Risk Agent", icon: "⚠️", task: "Evaluating concentration risk & expense drag..." },
+    { name: "Strategy Agent", icon: "🧠", task: "Generating personalized rebalancing plan..." },
+  ];
+
+  const simulateAnalysis = useCallback((portfolioData) => {
+    setScreen("analyzing");
+    setAgentLogs([]);
+    agents.forEach((agent, i) => {
+      setTimeout(() => {
+        setAgentLogs((prev) => [...prev, { ...agent, status: "running" }]);
+      }, i * 800);
+      setTimeout(() => {
+        setAgentLogs((prev) => prev.map((l, idx) => idx === i ? { ...l, status: "done" } : l));
+      }, i * 800 + 700);
+    });
+    setTimeout(() => {
+      const result = runAnalysis(portfolioData);
+      setAnalysis(result);
+      setScreen("results");
+    }, agents.length * 800 + 500);
+  }, []);
+
+  const handleSamplePortfolio = (key) => {
+    setPortfolio(SAMPLE_PORTFOLIOS[key]);
+    simulateAnalysis(SAMPLE_PORTFOLIOS[key]);
+  };
+
+  // ── STYLES ──
+  const S = {
+    app: { minHeight: "100vh", background: "#0a0a1a", color: "#e2e8f0", fontFamily: "'DM Sans', 'Segoe UI', sans-serif", overflow: "hidden" },
+    glow: (color) => ({ boxShadow: `0 0 40px ${color}15, 0 0 80px ${color}08` }),
+    card: { background: "#111827", borderRadius: 16, padding: 24, border: "1px solid #1e293b" },
+    glass: { background: "rgba(17, 24, 39, 0.7)", backdropFilter: "blur(20px)", borderRadius: 16, padding: 24, border: "1px solid rgba(99, 102, 241, 0.1)" },
+    btn: (primary) => ({
+      padding: "12px 28px", borderRadius: 12, border: "none", fontWeight: 700, fontSize: 14,
+      cursor: "pointer", transition: "all 0.3s",
+      background: primary ? "linear-gradient(135deg, #6366f1, #8b5cf6)" : "rgba(99, 102, 241, 0.1)",
+      color: primary ? "#fff" : "#a5b4fc",
+      ...(primary ? { boxShadow: "0 4px 24px rgba(99, 102, 241, 0.3)" } : {}),
+    }),
+    tag: (color) => ({
+      display: "inline-block", padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700,
+      background: `${color}15`, color, letterSpacing: "0.5px",
+    }),
+  };
+
+  // ── LANDING ──
+  if (screen === "landing") {
+    return (
+      <div style={S.app}>
+        <div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 20px" }}>
+          {/* Header */}
+          <div style={{ textAlign: "center", marginBottom: 48 }}>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+              <div style={{ width: 48, height: 48, borderRadius: 14, background: "linear-gradient(135deg, #6366f1, #8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, boxShadow: "0 0 30px rgba(99,102,241,0.4)" }}>🔬</div>
+              <div>
+                <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, background: "linear-gradient(135deg, #c7d2fe, #a5b4fc, #818cf8)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>MF Portfolio X-Ray</h1>
+                <p style={{ margin: 0, fontSize: 12, color: "#6366f1", fontWeight: 600, letterSpacing: 2, textTransform: "uppercase" }}>AI Investment Intelligence</p>
+              </div>
+            </div>
+            <p style={{ color: "#64748b", fontSize: 16, maxWidth: 600, margin: "16px auto 0", lineHeight: 1.6 }}>
+              Upload your CAMS/KFintech statement. Our 5-agent AI pipeline reconstructs your portfolio, computes true XIRR, detects overlap, and generates a personalized rebalancing plan — in under 10 seconds.
+            </p>
+          </div>
+
+          {/* Agent Pipeline Visual */}
+          <div style={{ ...S.glass, marginBottom: 32, ...S.glow("#6366f1") }}>
+            <p style={{ fontSize: 11, color: "#6366f1", fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginTop: 0, marginBottom: 16 }}>Multi-Agent Pipeline</p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+              {agents.map((a, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ background: "#1e293b", borderRadius: 10, padding: "8px 14px", display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 18 }}>{a.icon}</span>
+                    <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600 }}>{a.name}</span>
+                  </div>
+                  {i < agents.length - 1 && <span style={{ color: "#334155", fontSize: 18 }}>→</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Upload Zone */}
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => { e.preventDefault(); setDragOver(false); setScreen("upload"); }}
+            style={{
+              ...S.card, textAlign: "center", cursor: "pointer", marginBottom: 32,
+              border: dragOver ? "2px dashed #6366f1" : "2px dashed #1e293b",
+              transition: "all 0.3s", padding: 40,
+              ...(dragOver ? S.glow("#6366f1") : {}),
+            }}
+          >
+            <input ref={fileInputRef} type="file" accept=".pdf,.csv,.txt" style={{ display: "none" }} onChange={() => setScreen("upload")} />
+            <div style={{ fontSize: 48, marginBottom: 12 }}>📁</div>
+            <p style={{ color: "#94a3b8", fontSize: 15, margin: 0, fontWeight: 600 }}>Drop your CAMS / KFintech PDF here</p>
+            <p style={{ color: "#475569", fontSize: 12, margin: "8px 0 0" }}>or click to browse • Supports PDF, CSV</p>
+          </div>
+
+          {/* Sample Portfolios */}
+          <div>
+            <p style={{ fontSize: 11, color: "#475569", fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginBottom: 14, textAlign: "center" }}>Or try a sample portfolio</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
+              {[
+                { key: "conservative", label: "🛡️ Conservative", desc: "3 funds • Large Cap + Value heavy", amount: "₹12L invested" },
+                { key: "aggressive", label: "🚀 Aggressive", desc: "5 funds • Small & Mid Cap heavy", amount: "₹15L invested" },
+                { key: "overlap_heavy", label: "⚠️ Overlap-Heavy", desc: "6 funds • High redundancy portfolio", amount: "₹15L invested" },
+              ].map((p) => (
+                <div
+                  key={p.key}
+                  onClick={() => handleSamplePortfolio(p.key)}
+                  style={{ ...S.card, cursor: "pointer", transition: "all 0.3s", padding: 18 }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#6366f1"; e.currentTarget.style.transform = "translateY(-2px)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#1e293b"; e.currentTarget.style.transform = "translateY(0)"; }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0", marginBottom: 4 }}>{p.label}</div>
+                  <div style={{ fontSize: 12, color: "#64748b" }}>{p.desc}</div>
+                  <div style={{ fontSize: 11, color: "#475569", marginTop: 4 }}>{p.amount}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div style={{ textAlign: "center", marginTop: 40, padding: "20px 0", borderTop: "1px solid #1e293b" }}>
+            <p style={{ fontSize: 11, color: "#334155" }}>Built for ET AI Hackathon 2026 • Problem Statement 6: AI for the Indian Investor</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── ANALYZING ──
+  if (screen === "analyzing") {
+    return (
+      <div style={{ ...S.app, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ maxWidth: 500, width: "100%", padding: 24 }}>
+          <div style={{ textAlign: "center", marginBottom: 32 }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>🔬</div>
+            <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "#e2e8f0" }}>Analyzing Portfolio</h2>
+            <p style={{ color: "#64748b", fontSize: 13, margin: "8px 0 0" }}>5-agent pipeline in progress...</p>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {agents.map((agent, i) => {
+              const log = agentLogs.find((l) => l.name === agent.name);
+              const status = log?.status || "waiting";
+              return (
+                <div key={i} style={{ ...S.card, padding: 16, display: "flex", alignItems: "center", gap: 14, opacity: status === "waiting" ? 0.4 : 1, transition: "all 0.5s", border: status === "running" ? "1px solid #6366f1" : "1px solid #1e293b" }}>
+                  <span style={{ fontSize: 24 }}>{agent.icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0" }}>{agent.name}</div>
+                    <div style={{ fontSize: 11, color: "#64748b" }}>{agent.task}</div>
+                  </div>
+                  <div style={{ fontSize: 18 }}>
+                    {status === "done" ? "✅" : status === "running" ? <span style={{ display: "inline-block", animation: "spin 1s linear infinite", fontSize: 16 }}>⏳</span> : "⏸️"}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+        </div>
+      </div>
+    );
+  }
+
+  // ── RESULTS ──
+  if (screen === "results" && analysis) {
+    const { totalInvested, totalCurrent, totalGain, gainPct, fundAnalysis, categories, overlapMatrix, totalExpenseDrag, weightedExpense, score, recommendations } = analysis;
+    const tabs = [
+      { id: "overview", label: "Overview", icon: "📊" },
+      { id: "funds", label: "Fund Analysis", icon: "📋" },
+      { id: "overlap", label: "Overlap", icon: "🔍" },
+      { id: "rebalance", label: "AI Rebalance", icon: "🧠" },
+    ];
+
+    return (
+      <div style={S.app}>
+        <div style={{ maxWidth: 960, margin: "0 auto", padding: "24px 16px" }}>
+          {/* Top Bar */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #6366f1, #8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🔬</div>
+              <div>
+                <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#e2e8f0" }}>Portfolio X-Ray</h1>
+                <p style={{ margin: 0, fontSize: 11, color: "#6366f1" }}>{fundAnalysis.length} funds analyzed</p>
+              </div>
+            </div>
+            <button onClick={() => { setScreen("landing"); setAnalysis(null); setPortfolio(null); setActiveTab("overview"); }} style={S.btn(false)}>← New Analysis</button>
+          </div>
+
+          {/* Tabs */}
+          <div style={{ display: "flex", gap: 4, marginBottom: 24, flexWrap: "wrap" }}>
+            {tabs.map((t) => (
+              <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
+                padding: "10px 18px", borderRadius: 10, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600, transition: "all 0.3s",
+                background: activeTab === t.id ? "linear-gradient(135deg, #6366f1, #8b5cf6)" : "transparent",
+                color: activeTab === t.id ? "#fff" : "#64748b",
+              }}>
+                {t.icon} {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* ── OVERVIEW TAB ── */}
+          {activeTab === "overview" && (
+            <div>
+              {/* KPI Cards */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 24 }}>
+                {[
+                  { label: "Invested", value: fmtLakh(totalInvested), color: "#94a3b8" },
+                  { label: "Current Value", value: fmtLakh(totalCurrent), color: "#a5b4fc" },
+                  { label: "Total Gain", value: fmtLakh(totalGain), color: totalGain >= 0 ? "#10B981" : "#EF4444", sub: fmtPct(gainPct) },
+                  { label: "Expense Drag/yr", value: `₹${fmt(totalExpenseDrag)}`, color: "#F59E0B", sub: `Avg: ${weightedExpense.toFixed(2)}%` },
+                ].map((k, i) => (
+                  <div key={i} style={{ ...S.card, padding: 18 }}>
+                    <div style={{ fontSize: 11, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>{k.label}</div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: k.color, fontFamily: "'JetBrains Mono', monospace" }}>{k.value}</div>
+                    {k.sub && <div style={{ fontSize: 12, color: k.color, marginTop: 4, opacity: 0.7 }}>{k.sub}</div>}
+                  </div>
+                ))}
+              </div>
+
+              {/* Health Score + Allocation */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
+                <div style={{ ...S.card, ...S.glow("#6366f1") }}>
+                  <p style={{ fontSize: 11, color: "#6366f1", fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginTop: 0, marginBottom: 8 }}>Portfolio Health Score</p>
+                  <HealthGauge score={score} />
+                </div>
+                <div style={S.card}>
+                  <p style={{ fontSize: 11, color: "#6366f1", fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginTop: 0, marginBottom: 12 }}>Category Allocation</p>
+                  <DonutChart data={Object.entries(categories).map(([k, v]) => ({ label: k, value: v }))} size={180} />
+                </div>
+              </div>
+
+              {/* XIRR Comparison */}
+              <div style={{ ...S.card, marginBottom: 24 }}>
+                <p style={{ fontSize: 11, color: "#6366f1", fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginTop: 0, marginBottom: 16 }}>Fund-wise XIRR</p>
+                {fundAnalysis.map((f, i) => (
+                  <HBar key={i} label={f.fund} value={f.xirr} max={Math.max(...fundAnalysis.map((x) => x.xirr)) * 1.2} color={f.xirr > 15 ? "#10B981" : f.xirr > 10 ? "#3B82F6" : "#F59E0B"} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── FUNDS TAB ── */}
+          {activeTab === "funds" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {fundAnalysis.map((f, i) => (
+                <div key={i} style={{ ...S.card, padding: 20 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: "#e2e8f0", marginBottom: 4 }}>{f.fund}</div>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <span style={S.tag("#6366f1")}>{f.category}</span>
+                        <span style={S.tag(f.risk === "Very High" ? "#EF4444" : f.risk === "High" ? "#F59E0B" : "#10B981")}>{f.risk} Risk</span>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: f.gain >= 0 ? "#10B981" : "#EF4444", fontFamily: "'JetBrains Mono', monospace" }}>{fmtPct(f.gainPct)}</div>
+                      <div style={{ fontSize: 11, color: "#475569" }}>XIRR: {f.xirr.toFixed(1)}%</div>
+                    </div>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12 }}>
+                    {[
+                      { label: "Invested", value: fmtLakh(f.invested) },
+                      { label: "Current", value: fmtLakh(f.current) },
+                      { label: "Gain", value: `₹${fmt(f.gain)}`, color: f.gain >= 0 ? "#10B981" : "#EF4444" },
+                      { label: "Allocation", value: `${f.allocation.toFixed(1)}%` },
+                      { label: "Expense", value: `${f.expense}%` },
+                      { label: "Exp. Drag", value: `₹${fmt(f.expenseDrag)}/yr`, color: "#F59E0B" },
+                    ].map((m, j) => (
+                      <div key={j} style={{ background: "#0a0a1a", borderRadius: 8, padding: "8px 12px" }}>
+                        <div style={{ fontSize: 10, color: "#475569", textTransform: "uppercase", letterSpacing: 0.5 }}>{m.label}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: m.color || "#e2e8f0", fontFamily: "'JetBrains Mono', monospace", marginTop: 2 }}>{m.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ marginTop: 12, display: "flex", gap: 4, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 10, color: "#475569", marginRight: 4, lineHeight: "22px" }}>Top Holdings:</span>
+                    {f.topHoldings.slice(0, 6).map((h, hi) => (
+                      <span key={hi} style={{ fontSize: 10, padding: "3px 8px", borderRadius: 4, background: "#1e293b", color: "#94a3b8" }}>{h}</span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── OVERLAP TAB ── */}
+          {activeTab === "overlap" && (
+            <div>
+              <div style={{ ...S.card, marginBottom: 16, ...S.glow("#F59E0B") }}>
+                <p style={{ fontSize: 11, color: "#F59E0B", fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginTop: 0, marginBottom: 4 }}>Overlap Summary</p>
+                <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 4, marginBottom: 16 }}>
+                  {overlapMatrix.filter(o => o.pct > 30).length} fund pair(s) with &gt;30% holding overlap. High overlap means you're paying double expense ratios for essentially the same stocks.
+                </p>
+                <OverlapViz matrix={overlapMatrix} funds={fundAnalysis} />
+              </div>
+              {/* Overlap Matrix Table */}
+              <div style={S.card}>
+                <p style={{ fontSize: 11, color: "#6366f1", fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginTop: 0, marginBottom: 12 }}>Pairwise Overlap Matrix</p>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ padding: 8, textAlign: "left", color: "#475569", borderBottom: "1px solid #1e293b" }}></th>
+                        {fundAnalysis.map((f, i) => <th key={i} style={{ padding: 8, textAlign: "center", color: "#64748b", borderBottom: "1px solid #1e293b", maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.fund.split(" ").slice(0, 2).join(" ")}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {fundAnalysis.map((f1, i) => (
+                        <tr key={i}>
+                          <td style={{ padding: 8, color: "#94a3b8", borderBottom: "1px solid #0f172a", whiteSpace: "nowrap" }}>{f1.fund.split(" ").slice(0, 2).join(" ")}</td>
+                          {fundAnalysis.map((f2, j) => {
+                            if (i === j) return <td key={j} style={{ padding: 8, textAlign: "center", borderBottom: "1px solid #0f172a", color: "#334155" }}>—</td>;
+                            const match = overlapMatrix.find(o => (o.fund1 === f1.fund && o.fund2 === f2.fund) || (o.fund1 === f2.fund && o.fund2 === f1.fund));
+                            const pct = match?.pct || 0;
+                            const bg = pct > 50 ? "rgba(239,68,68,0.2)" : pct > 30 ? "rgba(245,158,11,0.15)" : pct > 0 ? "rgba(16,185,129,0.1)" : "transparent";
+                            const clr = pct > 50 ? "#EF4444" : pct > 30 ? "#F59E0B" : pct > 0 ? "#10B981" : "#334155";
+                            return <td key={j} style={{ padding: 8, textAlign: "center", borderBottom: "1px solid #0f172a", background: bg, color: clr, fontWeight: pct > 30 ? 700 : 400, fontFamily: "'JetBrains Mono', monospace" }}>{pct > 0 ? `${pct.toFixed(0)}%` : "0%"}</td>;
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── REBALANCE TAB ── */}
+          {activeTab === "rebalance" && (
+            <div>
+              <div style={{ ...S.glass, marginBottom: 16, ...S.glow("#6366f1") }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                  <span style={{ fontSize: 28 }}>🧠</span>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: "#e2e8f0" }}>AI Strategy Agent</div>
+                    <div style={{ fontSize: 11, color: "#6366f1" }}>Personalized recommendations based on your portfolio analysis</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {recommendations.map((r, i) => {
+                    const colors = { warning: { bg: "#F59E0B", icon: "⚠️" }, info: { bg: "#3B82F6", icon: "💡" }, success: { bg: "#10B981", icon: "✅" } };
+                    const c = colors[r.type];
+                    return (
+                      <div key={i} style={{ background: "#0f172a", borderRadius: 12, padding: 18, borderLeft: `4px solid ${c.bg}` }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                          <span style={{ fontSize: 18 }}>{c.icon}</span>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0" }}>{r.title}</span>
+                        </div>
+                        <p style={{ fontSize: 13, color: "#94a3b8", margin: "0 0 8px", lineHeight: 1.6 }}>{r.desc}</p>
+                        <div style={{ ...S.tag(c.bg), fontSize: 11 }}>Impact: {r.impact}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Action Summary */}
+              <div style={S.card}>
+                <p style={{ fontSize: 11, color: "#10B981", fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginTop: 0, marginBottom: 12 }}>Projected Annual Savings</p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+                  {[
+                    { label: "Expense Ratio Savings", value: `₹${fmt(totalExpenseDrag * 0.4)}`, icon: "💰" },
+                    { label: "Overlap Elimination", value: `₹${fmt(totalExpenseDrag * 0.25)}`, icon: "🔗" },
+                    { label: "Tax Harvesting", value: "₹12,500", icon: "🏛️" },
+                    { label: "Total Potential", value: `₹${fmt(totalExpenseDrag * 0.65 + 12500)}`, icon: "🎯" },
+                  ].map((s, i) => (
+                    <div key={i} style={{ background: "#0a0a1a", borderRadius: 10, padding: 16, textAlign: "center" }}>
+                      <div style={{ fontSize: 24, marginBottom: 6 }}>{s.icon}</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: "#10B981", fontFamily: "'JetBrains Mono', monospace" }}>{s.value}</div>
+                      <div style={{ fontSize: 11, color: "#475569", marginTop: 4 }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Footer */}
+          <div style={{ textAlign: "center", marginTop: 32, padding: "16px 0", borderTop: "1px solid #1e293b" }}>
+            <p style={{ fontSize: 10, color: "#1e293b" }}>ET AI Hackathon 2026 • Problem Statement 6 • Multi-Agent AI Portfolio Intelligence</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
